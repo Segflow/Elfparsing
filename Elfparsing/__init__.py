@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 #
-#    Copyright (C) 2012-06 Jonathan Salwan - http://www.twitter.com/jonathansalwan
+#    Copyright (C) 2012-07 Jonathan Salwan - http://www.twitter.com/jonathansalwan
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -18,17 +18,18 @@
 #
 
 import Elfparsing.flags as flags
-from struct import unpack
+from struct import pack,unpack
 
 """
-Class Elf -  This class parse ELF file and return all informations
-             about this format.
+Class Elf -  This class parse/edit ELF file and return/save all informations
+             about binary. 
 """
 class Elf(object):
    def __init__(self, filename=None):
       # Core
       self.filename     = None
       self.mmapBinary   = None
+      self.NewBinary    = bytearray("")
 
       # ElfHeader
       self.e_ident      = None
@@ -70,6 +71,7 @@ class Elf(object):
       self.__setShdr()
       self.__setPhdr()
       self.__setSym()
+      self.NewBinary = bytearray(self.mmapBinary)
       return (True)
 
    """ Load Binary code """
@@ -81,6 +83,21 @@ class Elf(object):
       self.__setShdr()
       self.__setPhdr()
       self.__setSym()
+      self.NewBinary = bytearray(self.mmapBinary)
+      return (True)
+
+   """ 
+   save mmapBinary in file 
+   Ex: elf.saveBinary("./newFile.bin")
+   """
+   def saveBinary(self, filename):
+      try:
+         File = open(filename, "w")
+         File.write(self.NewBinary)
+         File.close()
+      except Exception, e:
+         print e
+         return (False)
       return (True)
 
    """ Return binary maped """
@@ -97,7 +114,7 @@ class Elf(object):
          self.e_type    = unpack("<H", self.mmapBinary[16:18])[0]
          self.e_machine = unpack("<H", self.mmapBinary[18:20])[0]
          self.e_version = unpack("<I", self.mmapBinary[20:24])[0]
-         if unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS32:
+         if self.getArch() == flags.ELFCLASS32:
             self.e_entry      = unpack("<I", self.mmapBinary[24:28])[0]
             self.e_phoff      = unpack("<I", self.mmapBinary[28:32])[0]
             self.e_shoff      = unpack("<I", self.mmapBinary[32:36])[0]
@@ -108,7 +125,7 @@ class Elf(object):
             self.e_shentsize  = unpack("<H", self.mmapBinary[46:48])[0]
             self.e_shnum      = unpack("<H", self.mmapBinary[48:50])[0]
             self.e_shstrndx   = unpack("<H", self.mmapBinary[50:52])[0]
-         elif unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS64:
+         elif self.getArch() == flags.ELFCLASS64:
             self.e_entry      = unpack("<Q", self.mmapBinary[24:32])[0]
             self.e_phoff      = unpack("<Q", self.mmapBinary[32:40])[0]
             self.e_shoff      = unpack("<Q", self.mmapBinary[40:48])[0]
@@ -119,10 +136,10 @@ class Elf(object):
             self.e_shentsize  = unpack("<H", self.mmapBinary[58:60])[0]
             self.e_shnum      = unpack("<H", self.mmapBinary[60:62])[0]
             self.e_shstrndx   = unpack("<H", self.mmapBinary[62:64])[0]
-         return True
+         return (True)
       except:
          print "Error - setHeaderElf()"
-         return False
+         return (False)
 
    """ Parse Program header """
    def __setPhdr(self):
@@ -130,9 +147,10 @@ class Elf(object):
          return
       pdhr_num = self.e_phnum
       base = self.mmapBinary[self.e_phoff:]
+      phdr_l = []
       try:
          for i in range(pdhr_num):
-            if unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS32:
+            if self.getArch() == flags.ELFCLASS32:
                phdr = {
                         'p_type'    : unpack("<I", base[0:4])[0],
                         'p_offset'  : unpack("<I", base[4:8])[0],
@@ -143,7 +161,7 @@ class Elf(object):
                         'p_flags'   : unpack("<I", base[24:28])[0],
                         'p_align'   : unpack("<I", base[28:32])[0]
                       }
-            elif unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS64:
+            elif self.getArch() == flags.ELFCLASS64:
                phdr = {
                         'p_type'    : unpack("<I", base[0:4])[0],
                         'p_offset'  : unpack("<I", base[4:8])[0],
@@ -158,8 +176,8 @@ class Elf(object):
             base = base[self.e_phentsize:]
       except:
          print "Error setPhdr() - in parsing Phdr"
-         return False
-      return True
+         return (False)
+      return (True)
 
    """ Parse Section header """
    def __setShdr(self):
@@ -167,9 +185,10 @@ class Elf(object):
          return
       shdr_num = self.e_shnum
       base = self.mmapBinary[self.e_shoff:]
+      shdr_l = []
       for i in range(shdr_num):
          try:
-            if unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS32:
+            if self.getArch() == flags.ELFCLASS32:
                shdr = {
                         'str_name'     : None,
                         'sh_name'      : unpack("<I", base[0:4])[0],
@@ -183,7 +202,7 @@ class Elf(object):
                         'sh_addralign' : unpack("<I", base[32:36])[0],
                         'sh_entsize'   : unpack("<I", base[36:40])[0]
                      }
-            elif unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS64:
+            elif self.getArch() == flags.ELFCLASS64:
                shdr = {
                         'str_name'     : None,
                         'sh_name'      : unpack("<I", base[0:4])[0],
@@ -201,13 +220,13 @@ class Elf(object):
             base = base[self.e_shentsize:]
          except:
             print "Error setShdr() - in parsing String table"
-            return False
+            return (False)
 
       # set name in section table from string table
       string_table =  self.mmapBinary[(self.shdr_l[self.e_shstrndx]["sh_offset"]):]
       for i in range(shdr_num):
          self.shdr_l[i]["str_name"] = string_table[self.shdr_l[i]["sh_name"]:].split('\0')[0]
-      return True
+      return (True)
 
    """ Parse Symbols header """
    def __setSym(self):
@@ -218,7 +237,7 @@ class Elf(object):
 
       if off_string_table == False or off_sym_table == False:
          #print "No symbols table found"
-         return False
+         return (False)
 
       if not symbols_num or not symbols_size:
          symbols_num = 0
@@ -226,9 +245,10 @@ class Elf(object):
          symbols_num /= symbols_size
       string_t = self.mmapBinary[off_string_table:]
       symbols_t = self.mmapBinary[off_sym_table:]
+      sym_l = []
       for i in range(symbols_num):
          try:
-            if unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS32:
+            if self.getArch() == flags.ELFCLASS32:
                sym = {
                         'str_name'  : None,
                         'st_name'   : unpack("<I", symbols_t[0:4])[0],
@@ -238,7 +258,7 @@ class Elf(object):
                         'st_other'  : unpack("<B", symbols_t[13:14])[0],
                         'st_shndx'  : unpack("<H", symbols_t[14:16])[0]
                      }
-            elif unpack("<B", self.e_ident[flags.EI_CLASS])[0] == flags.ELFCLASS64:
+            elif self.getArch() == flags.ELFCLASS64:
                sym = {
                         'str_name'  : None,
                         'st_name'   : unpack("<I", symbols_t[0:4])[0],
@@ -252,7 +272,7 @@ class Elf(object):
             symbols_t = symbols_t[symbols_size:]
          except:
             print "Error setSym() - in parsing Symbols table"
-            return False
+            return (False)
 
       # set name in sym table from string table
       for i in range(symbols_num):
@@ -263,30 +283,61 @@ class Elf(object):
    def isElf(self):
       try:
          if self.mmapBinary[:4] == "\x7fELF":
-            return True
+            return (True)
          else:
-            return False
+            return (False)
       except:
          print "Error - isElf()"
 
    """ Return architecture code """
    def getArch(self):
       try:
-         return (hex(unpack("<B", self.e_ident[flags.EI_CLASS])[0]))
+         return (unpack("<B", self.e_ident[flags.EI_CLASS])[0])
       except:
          print "Error - getArch()"
+
+   def getEident(self):
+      return (self.e_ident)
+
+   def setEident(self, eident):
+      self.e_ident = eident
+      self.NewBinary[:15] = eident
+      return
 
    def getEtype(self):
       return (self.e_type)
 
+   def setEtype(self, etype):
+      self.e_type = etype
+      self.NewBinary[16:18] = pack("<H", etype)
+      return
+
    def getEmachine(self):
       return (self.e_machine)
+
+   def setEmachine(self, emachine):
+      self.e_machine = emachine
+      self.NewBinary[18:20] = pack("<H", emachine)
+      return
 
    def getEversion(self):
       return (self.e_version)
 
+   def setEversion(self, eversion):
+      self.e_version = eversion
+      self.NewBinary[20:24] = pack("<I", eversion)
+      return
+
    def getEentry(self):
       return (self.e_entry)
+
+   def setEentry(self, eentry):
+      self.e_entry = eentry
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[24:28] = pack("<I", eentry)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[24:32] = pack("<Q", eentry)
+      return
 
    def getEntryPoint(self):
       return (self.getEentry())
@@ -294,32 +345,101 @@ class Elf(object):
    def getEphoff(self):
       return (self.e_phoff)
 
+   def setEphoff(self, ephoff):
+      self.e_phoff = ephoff
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[28:32] = pack("<I", ephoff)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[32:40] = pack("<Q", ephoff)
+      return
+
    def getEshoff(self):
       return (self.e_shoff)
+
+   def setEphoff(self, eshoff):
+      self.e_shoff = eshoff
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[32:36] = pack("<I", eshoff)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[40:48] = pack("<Q", eshoff)
+      return
 
    def getEflags(self):
       return (self.e_flags)
 
+   def setEflags(self, eflags):
+      self.e_flags = eflags
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[36:40] = pack("<I", eflags)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[48:52] = pack("<I", eflags)
+      return
+
    def getEehsize(self):
       return (self.e_ehsize)
+
+   def setEehsize(self, eehsize):
+      self.e_ehsize = eehsize
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[40:42] = pack("<H", eehsize)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[52:54] = pack("<H", eehsize)
+      return
 
    def getEphentsize(self):
       return (self.e_phentsize)
 
+   def setEphentsize(self, ephentsize):
+      self.e_phentsize = ephentsize
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[42:44] = pack("<H", ephentsize)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[54:56] = pack("<H", ephentsize)
+      return
+
    def getEphnum(self):
       return (self.e_phnum)
+
+   def setEphnum(self, ephnum):
+      self.e_phnum = ephnum
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[44:46] = pack("<H", ephnum)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[56:58] = pack("<H", ephnum)
+      return
 
    def getEshentsize(self):
       return (self.e_shentsize)
 
+   def setEshentsize(self, eshentsize):
+      self.e_shentsize = eshentsize
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[46:48] = pack("<H", eshentsize)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[58:60] = pack("<H", eshentsize)
+      return
+
    def getEshnum(self):
       return (self.e_shnum)
 
-   def HowManySections(self):
-      return (self.getEshnum())
+   def setEshnum(self, eshnum):
+      self.e_shnum = eshnum
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[48:50] = pack("<H", eshnum)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[60:62] = pack("<H", eshnum)
+      return
 
    def getEshstrndx(self):
       return (self.e_shstrndx)
+
+   def setEshstrndx(self, eshstrndx):
+      self.e_shstrndx = eshstrndx
+      if self.getArch() == flags.ELFCLASS32:
+         self.NewBinary[50:52] = pack("<H", eshstrndx)
+      elif self.getArch() == flags.ELFCLASS64:
+         self.NewBinary[62:64] = pack("<H", eshstrndx)
+      return
 
    def getPhdrList(self):
       return (self.phdr_l)
@@ -337,14 +457,14 @@ class Elf(object):
       return (True)
 
    """
-   Return section header by Name.
+   Return section structure by Name.
    Exemple - getSectionByName(".text")
    """
    def getSectionByName(self, section_name):
       for shdr in self.shdr_l:
          if shdr["str_name"] == section_name:
             return shdr
-      return None
+      return (None)
 
    """
    Return section data by Name.
@@ -358,7 +478,7 @@ class Elf(object):
                return (self.shdr_l[i][data])
             except:
                print "Error - getSectionDataByName() - No '%s' in Shdr" %(data)
-      return None
+      return (None)
 
    """
    Return section data by addr.
@@ -374,7 +494,7 @@ class Elf(object):
                return (self.shdr_l[i][data])
             except:
                print "Error - getSectionDataByAddr() - No '%s' in Shdr" %(data)
-      return None
+      return (None)
 
    """
    Return section opcodes by name.
@@ -414,7 +534,7 @@ class Elf(object):
       for sym in self.sym_l:
          if sym["str_name"] == sym_name:
             return sym["st_value"]
-      return None
+      return (None)
 
    """
    Return name by symbol addr.
@@ -424,7 +544,7 @@ class Elf(object):
       for sym in self.sym_l:
          if sym["st_value"] == sym_addr:
             return sym["str_name"]
-      return None
+      return (None)
 
    """
    Return symbol by symbol name.
@@ -434,5 +554,5 @@ class Elf(object):
       for sym in self.sym_l:
          if sym["str_name"] == sym_name:
             return sym
-      return None
+      return (None)
 
