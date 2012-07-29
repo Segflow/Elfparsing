@@ -25,14 +25,14 @@ if __name__ == "__main__":
    if len(argv) < 2:
       print "Syntax: %s <binary>" %(argv[0])
       exit(-1)
-   
+
    binary = Elf(argv[1])
    if binary.isElf():
       print "Is a Elf binary"
       print "Entry point : %x" %(binary.getEntryPoint())
 
       print "Section .text addr %x" %(binary.getSectionDataByName(".text", "sh_addr"))
-      section_text = binary.extractSectionByName(".text")
+      section_text = binary.extractRawSectionByName(".text")
       print "Size section .text : %d" %(len(section_text)) # same result with binary.getSectionDataByName(".text", "sh_size")
 
       if binary.symbolsFound():
