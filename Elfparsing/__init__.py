@@ -67,10 +67,12 @@ class Elf():
       except Exception, e:
          print e
          return (False)
-      self.__setHeaderElf()
-      self.__setShdr()
-      self.__setPhdr()
-      self.__setSym()
+
+      if self.isElf(): # Don't go forward if it's not an ELF file ;)
+         self.__setHeaderElf()
+         self.__setShdr()
+         self.__setPhdr()
+         self.__setSym()
       return (True)
 
    """ Load Binary code """
@@ -129,7 +131,7 @@ class Elf():
             self.e_shnum      = unpack("<H", str(self.mmapBinary[48:50]))[0]
             self.e_shstrndx   = unpack("<H", str(self.mmapBinary[50:52]))[0]
          elif self.getArch() == flags.ELFCLASS64:
-            self.e_entry      = unpack("<Q", str(self.mmapBinary[24:32]))[0]
+            self.e_entry      = Addr(unpack("<Q", str(self.mmapBinary[24:32]))[0])
             self.e_phoff      = unpack("<Q", str(self.mmapBinary[32:40]))[0]
             self.e_shoff      = unpack("<Q", str(self.mmapBinary[40:48]))[0]
             self.e_flags      = unpack("<I", str(self.mmapBinary[48:52]))[0]
@@ -341,7 +343,7 @@ class Elf():
    """ Return false or true if is a ELF file """
    def isElf(self):
       try:
-         if self.mmapBinary[:4] == ELFMAG:
+         if self.mmapBinary[:4] == flags.ELFMAG:
             return (True)
          else:
             return (False)
