@@ -1,0 +1,7 @@
+TODO: 
+	-  Disassemble executable sections [not implemented yet]
+	-  __init__.py is too big
+       i think a new class 'Section' will help when managing sections [not implemented yet]
+	
+	-  isExecutable(), isWritable() method for the 'Section' class [not implemented yet]
+	-  Possibily to know if the stack is executable [not implemented yet]
