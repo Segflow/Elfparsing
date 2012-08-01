@@ -80,10 +80,12 @@ class Elf():
       self.mmapBinary = bytearray(code)
       if self.mmapBinary == None:
          return (False)
-      self.__setHeaderElf()
-      self.__setShdr()
-      self.__setPhdr()
-      self.__setSym()
+
+      if self.isElf():
+         self.__setHeaderElf()
+         self.__setShdr()
+         self.__setPhdr()
+         self.__setSym()
       return (True)
 
    """
@@ -149,8 +151,6 @@ class Elf():
 
    """ Parse Program header """
    def __setPhdr(self):
-      if not self.isElf():
-         return
       pdhr_num = self.e_phnum
       base = str(self.mmapBinary[self.e_phoff:])
       phdr_l = []
@@ -187,8 +187,6 @@ class Elf():
 
    """ Parse Section header """
    def __setShdr(self):
-      if not self.isElf():
-         return
       shdr_num = self.e_shnum
       base = str(self.mmapBinary[self.e_shoff:])
       shdr_l = []
@@ -200,7 +198,7 @@ class Elf():
                         'sh_name'      : unpack("<I", base[0:4])[0],
                         'sh_type'      : unpack("<I", base[4:8])[0],
                         'sh_flags'     : unpack("<I", base[8:12])[0],
-                        'sh_addr'      : unpack("<I", base[12:16])[0],
+                        'sh_addr'      : Addr(unpack("<I", base[12:16])[0]),
                         'sh_offset'    : unpack("<I", base[16:20])[0],
                         'sh_size'      : unpack("<I", base[20:24])[0],
                         'sh_link'      : unpack("<I", base[24:28])[0],
@@ -214,7 +212,7 @@ class Elf():
                         'sh_name'      : unpack("<I", base[0:4])[0],
                         'sh_type'      : unpack("<I", base[4:8])[0],
                         'sh_flags'     : unpack("<Q", base[8:16])[0],
-                        'sh_addr'      : unpack("<Q", base[16:24])[0],
+                        'sh_addr'      : Addr(unpack("<Q", base[16:24])[0]),
                         'sh_offset'    : unpack("<Q", base[24:32])[0],
                         'sh_size'      : unpack("<Q", base[32:40])[0],
                         'sh_link'      : unpack("<Q", base[40:48])[0],
@@ -317,19 +315,19 @@ class Elf():
       return (True)
 
    """ Convert Phdr_l to raw Phdr. Return Raw Phdr """
-   def convertPhdrListToRaw(self, phdr_l, arch):
+   def convertPhdrListToRaw(self, phdr_l, arch = 32):
       raw = ""
       for phdr in phdr_l:
          raw += pack("<I", phdr["p_type"])
          raw += pack("<I", phdr["p_offset"])
-         if arch == flags.ELFCLASS32:
+         if arch == flags.ELFCLASS32 or arch == 32:
             raw += pack("<I", phdr["p_vaddr"])
             raw += pack("<I", phdr["p_paddr"])
             raw += pack("<I", phdr["p_filesz"])
             raw += pack("<I", phdr["p_memsz"])
             raw += pack("<I", phdr["p_flags"])
             raw += pack("<I", phdr["p_align"])
-         elif arch == flags.ELFCLASS64:
+         elif arch == flags.ELFCLASS64 or arch == 64:
             raw += pack("<Q", phdr["p_vaddr"])
             raw += pack("<Q", phdr["p_paddr"])
             raw += pack("<Q", phdr["p_filesz"])
@@ -338,7 +336,32 @@ class Elf():
             raw += pack("<Q", phdr["p_align"])
       return (raw)
 
-   # TODO faire le convert et importe pour shdr
+   # TODO faire l'importe pour shdr
+   """ Convert Shdr_l to raw Shdr. Return Raw Shdr """
+   def convertShdrListToRaw(self, shdr_l, arch = 32):
+      raw = ""
+      for shdr in shdr_l:
+         raw += pack("<I", phdr["sh_name"])
+         raw += pack("<I", phdr["sh_type"])
+         if arch == flags.ELFCLASS32 or arch == 32:
+            raw += pack("<I", phdr["sh_flags"])
+            raw += pack("<I", phdr["sh_addr"])
+            raw += pack("<I", phdr["sh_offset"])
+            raw += pack("<I", phdr["sh_size"])
+            raw += pack("<I", phdr["sh_link"])
+            raw += pack("<I", phdr["sh_info"])
+            raw += pack("<I", phdr["sh_addralign"])
+            raw += pack("<I", phdr["sh_entsize"])
+         elif arch == flags.ELFCLASS64 or arch == 64:
+            raw += pack("<Q", phdr["sh_flags"])
+            raw += pack("<Q", phdr["sh_addr"])
+            raw += pack("<Q", phdr["sh_offset"])
+            raw += pack("<Q", phdr["sh_size"])
+            raw += pack("<Q", phdr["sh_link"])
+            raw += pack("<Q", phdr["sh_info"])
+            raw += pack("<Q", phdr["sh_addralign"])
+            raw += pack("<Q", phdr["sh_entsize"])
+      return (raw)
 
    """ Return false or true if is a ELF file """
    def isElf(self):
@@ -530,6 +553,7 @@ class Elf():
             return shdr
       return (None)
 
+
    """
    Return section data by Name.
    Exemple - getSectionDataByName(".text", "sh_addr")
@@ -600,7 +624,7 @@ class Elf():
 
    """ Return number of entry in symbols table """
    def HowManyEntrySymbols(self):
-      return (len(self.sym))
+      return (len(self.sym_l))
 
    """
    Return addr by symbol name.
@@ -632,4 +656,21 @@ class Elf():
             return sym
       return (None)
 
+   """
+   Return path name to invoke as an interpreter.
+   Always contain linker path.
+   """
+   def getInterp(self):
+      for phdr in self.phdr_l:
+         if phdr['p_type'] == flags.PT_INTERP:
+            base = phdr['p_offset']
+            return str(self.mmapBinary[base:base + phdr['p_memsz']])
+      return None
 
+   """ 
+   Return the comment section as a string.
+   Always contain compiler info : compiler,version...
+   """
+   def getComment(self):
+      data = self.extractRawSectionByName('.comment')
+      return str(data.replace("\x00","\n").strip())
